@@ -90,7 +90,7 @@ def main(args):
     print(f"Using device: {device}")
     
     # Create model with reduced feature_scale to increase parameters
-    model = AttentionUNet(feature_scale=5, n_classes=19).to(device)
+    model = AttentionUNet(feature_scale=4.5, n_classes=19).to(device)
     num_params = count_parameters(model)
     print(f"Model parameters: {num_params:,}")
     
