@@ -111,7 +111,7 @@ def main(args):
     print(f"Using device: {device}")
     
     # Create model with reduced feature_scale to increase parameters
-    model = AttentionUNet(feature_scale=args.feature_scale, n_classes=19).to(device)
+    model = AttentionUNet(feature_scale=args.feature_scale, n_classes=19, use_deep_supervision=args.deep_supervision).to(device)
     num_params = count_parameters(model)
     print(f"Model parameters: {num_params:,}")
     
@@ -122,7 +122,7 @@ def main(args):
     train_loader, val_loader = get_dataloader(args.data_dir, args.batch_size, args.num_workers)
     
     # Loss and optimizer
-    criterion = CombinedLoss(ce_weight=0.9, dice_weight=0.1)
+    criterion = CombinedLoss(ce_weight=0.9, dice_weight=0.1, deep_supervision=args.deep_supervision)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.001)
     
     # OneCycleLR scheduler with 1 epoch warmup
@@ -184,6 +184,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers')
     parser.add_argument('--feature_scale', type=float, default=4.15, help='Feature scale for model size')
+    parser.add_argument('--deep_supervision', action='store_true', help='Use deep supervision')
     
     args = parser.parse_args()
     main(args)
