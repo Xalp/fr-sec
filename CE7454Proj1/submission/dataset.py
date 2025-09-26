@@ -99,8 +99,8 @@ def get_dataloader(root_dir, batch_size, num_workers=4):
         pin_memory=True
     )
     
-    # Validation dataset without augmentation
-    val_dataset = CelebAMaskDataset(root_dir, split='val', augment=False)
+    # Validation dataset without augmentation (using test as validation)
+    val_dataset = CelebAMaskDataset(root_dir, split='test', augment=False)
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=batch_size,
