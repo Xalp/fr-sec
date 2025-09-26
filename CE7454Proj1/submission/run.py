@@ -7,7 +7,7 @@ from model import AttentionUNet
 
 
 def load_model(weights_path, device):
-    model = AttentionUNet(feature_scale=3.2, n_classes=19)
+    model = AttentionUNet(feature_scale=3.3, n_classes=19)
     
     # Load checkpoint
     checkpoint = torch.load(weights_path, map_location=device)
