@@ -2,7 +2,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.cuda.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler
+from torch.amp import autocast
 from tqdm import tqdm
 import numpy as np
 from model_hrnet_lite import HRNetLiteFaceParser, count_parameters
@@ -67,7 +68,7 @@ class CombinedLoss(nn.Module):
         super().__init__()
         self.ce_loss = nn.CrossEntropyLoss()
         self.dice_loss = DiceLoss()
-        self.edge_loss = nn.BCELoss()
+        self.edge_loss = nn.BCEWithLogitsLoss()
         self.tv_loss = TVLoss()
         
         self.ce_weight = ce_weight
@@ -124,7 +125,7 @@ def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, devi
         
         optimizer.zero_grad()
         
-        with autocast():
+        with autocast(device_type='cuda', dtype=torch.float16):
             outputs, edge, aux = model(images)
             loss = criterion(outputs, masks, edge, aux)
         
@@ -197,11 +198,9 @@ def main(args):
     # EMA disabled
     ema = None
     
-    # Resolution curriculum
+    # Resolution curriculum - start at full resolution for face parsing
     resolution_schedule = [
-        (0, 30, 256),    # epochs 0-30: 256x256
-        (30, 70, 384),   # epochs 30-70: 384x384
-        (70, args.epochs, 512),  # epochs 70+: 512x512
+        (0, args.epochs, 512),  # Full resolution throughout
     ]
     
     # Training loop

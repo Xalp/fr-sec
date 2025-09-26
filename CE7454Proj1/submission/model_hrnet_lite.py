@@ -201,8 +201,8 @@ class HRNetLiteFaceParser(nn.Module):
         features = self.head(fused)
         out = self.classifier(features)
         
-        # Auxiliary outputs
-        edge = torch.sigmoid(self.edge_head(stage1_out))
+        # Auxiliary outputs (raw logits, no sigmoid)
+        edge = self.edge_head(stage1_out)
         aux = self.aux_head(low)
         aux = F.interpolate(aux, scale_factor=2, mode='bilinear', align_corners=True)
         
