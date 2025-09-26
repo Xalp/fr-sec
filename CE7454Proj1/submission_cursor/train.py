@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_split", type=float, default=0.1, help="Fraction of training data used for validation if explicit val set missing")
     parser.add_argument("--amp", action="store_true", help="Use mixed precision training")
     parser.add_argument("--num_classes", type=int, default=None, help="Override number of classes")
-    parser.add_argument("--model_type", type=str, default=None, choices=["v1", "v2"], help="Choose model architecture")
+    parser.add_argument("--model_type", type=str, default=None, choices=["v1", "v2", "v3"], help="Choose model architecture")
     return parser.parse_args()
 
 
