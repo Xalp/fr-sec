@@ -84,6 +84,7 @@ class FaceSegmentationDataset(Dataset):
 
         if mask is not None:
             mask_array = np.array(mask, dtype=np.int64)
+            mask_array = np.where(mask_array > 15, 0, mask_array)
             if self.target_transform:
                 mask_tensor = self.target_transform(mask_array)
             else:

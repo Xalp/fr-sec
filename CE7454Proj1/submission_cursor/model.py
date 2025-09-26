@@ -117,6 +117,32 @@ class ASPP(nn.Module):
         return self.project(x)
 
 
+class SplitResidualStage(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        num_branches: int,
+        stride: int = 1,
+    ) -> None:
+        super().__init__()
+        if out_channels % num_branches != 0:
+            raise ValueError("out_channels must be divisible by num_branches")
+        self.num_branches = num_branches
+        self.branch_channels = out_channels // num_branches
+
+        self.down = ResidualBlock(in_channels, out_channels, stride=stride)
+        self.branches = nn.ModuleList(
+            [ResidualBlock(self.branch_channels, self.branch_channels) for _ in range(num_branches)]
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.down(x)
+        splits = torch.chunk(x, self.num_branches, dim=1)
+        outputs = [branch(split) for branch, split in zip(self.branches, splits)]
+        return torch.cat(outputs, dim=1)
+
+
 class LightweightSegmentationNet(nn.Module):
     def __init__(self, num_classes: int = 16) -> None:
         super().__init__()
@@ -300,12 +326,73 @@ class LightweightSegmentationNetV2(nn.Module):
         return self.head(x)
 
 
+class LightweightSegmentationNetV3(nn.Module):
+    def __init__(self, num_classes: int = 16) -> None:
+        super().__init__()
+        base = 24
+        c1, c2, c3, c4 = base, base * 2, base * 4, base * 8
+
+        self.stem = nn.Sequential(
+            conv_bn_relu(3, c1, kernel_size=3, stride=2),
+            ResidualBlock(c1, c1, stride=1),
+        )
+
+        self.enc1 = SplitResidualStage(c1, c1, num_branches=1, stride=1)
+        self.enc2 = SplitResidualStage(c1, c2, num_branches=2, stride=2)
+        self.enc3 = SplitResidualStage(c2, c3, num_branches=4, stride=2)
+        self.enc4 = SplitResidualStage(c3, c4, num_branches=8, stride=2)
+        self.bottleneck = ResidualBlock(c4, c4, stride=1)
+
+        self.dec1_reduce = conv_bn_relu(c4 + c3, c3, kernel_size=3)
+        self.dec1_block = ResidualBlock(c3, c3)
+
+        self.dec2_reduce = conv_bn_relu(c3 + c2, c2, kernel_size=3)
+        self.dec2_block = ResidualBlock(c2, c2)
+
+        self.dec3_reduce = conv_bn_relu(c2 + c1, c1, kernel_size=3)
+        self.dec3_block = ResidualBlock(c1, c1)
+
+        self.final_conv = conv_bn_relu(c1, c1, kernel_size=3)
+        self.classifier = nn.Conv2d(c1, num_classes, kernel_size=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        size = x.shape[2:]
+
+        x = self.stem(x)
+        skip1 = self.enc1(x)
+        skip2 = self.enc2(skip1)
+        skip3 = self.enc3(skip2)
+        x = self.enc4(skip3)
+        x = self.bottleneck(x)
+
+        x = F.interpolate(x, size=skip3.shape[2:], mode="bilinear", align_corners=False)
+        x = torch.cat([x, skip3], dim=1)
+        x = self.dec1_reduce(x)
+        x = self.dec1_block(x)
+
+        x = F.interpolate(x, size=skip2.shape[2:], mode="bilinear", align_corners=False)
+        x = torch.cat([x, skip2], dim=1)
+        x = self.dec2_reduce(x)
+        x = self.dec2_block(x)
+
+        x = F.interpolate(x, size=skip1.shape[2:], mode="bilinear", align_corners=False)
+        x = torch.cat([x, skip1], dim=1)
+        x = self.dec3_reduce(x)
+        x = self.dec3_block(x)
+
+        x = F.interpolate(x, size=size, mode="bilinear", align_corners=False)
+        x = self.final_conv(x)
+        return self.classifier(x)
+
+
 def build_model(config: Dict) -> nn.Module:
     num_classes = config.get("num_classes", 16)
     model_type = config.get("model_type", "v1")
 
     if model_type == "v2":
         return LightweightSegmentationNetV2(num_classes=num_classes)
+    if model_type == "v3":
+        return LightweightSegmentationNetV3(num_classes=num_classes)
 
     return LightweightSegmentationNet(num_classes=num_classes)
 

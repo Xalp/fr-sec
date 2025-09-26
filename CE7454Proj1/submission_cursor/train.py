@@ -183,7 +183,7 @@ def main() -> None:
         pin_memory=True,
     )
 
-    num_classes = args.num_classes if args.num_classes is not None else config.get("num_classes", 19)
+    num_classes = args.num_classes if args.num_classes is not None else config.get("num_classes", 16)
     model_type = args.model_type if args.model_type is not None else config.get("model_type", "v1")
     model = build_model({"num_classes": num_classes, "model_type": model_type})
     param_count = count_parameters(model)
