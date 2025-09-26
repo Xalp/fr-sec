@@ -27,9 +27,37 @@ def load_image(image_path: Path) -> torch.Tensor:
     return tensor
 
 
+def create_palette() -> np.ndarray:
+    palette = np.array([[i, i, i] for i in range(256)], dtype=np.uint8)
+    palette[:16] = np.array(
+        [
+            [0, 0, 0],
+            [128, 0, 0],
+            [0, 128, 0],
+            [128, 128, 0],
+            [0, 0, 128],
+            [128, 0, 128],
+            [0, 128, 128],
+            [128, 128, 128],
+            [64, 0, 0],
+            [191, 0, 0],
+            [64, 128, 0],
+            [191, 128, 0],
+            [64, 0, 128],
+            [191, 0, 128],
+            [64, 128, 128],
+            [191, 128, 128],
+        ],
+        dtype=np.uint8,
+    )
+    return palette.reshape(-1)
+
+
 def save_mask(mask: torch.Tensor, output_path: Path) -> None:
     mask_np = mask.squeeze(0).cpu().numpy().astype(np.uint8)
-    Image.fromarray(mask_np, mode="P").save(output_path)
+    img = Image.fromarray(mask_np, mode="P")
+    img.putpalette(create_palette().tolist())
+    img.save(output_path)
 
 
 def main() -> None:
