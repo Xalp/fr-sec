@@ -216,6 +216,8 @@ def main() -> None:
         if is_best:
             best_val_loss = val_loss
 
+        print(f"Epoch {epoch + 1}/{args.num_epochs} - train_loss: {train_loss:.4f} val_loss: {val_loss:.4f}")
+
         state = {
             "epoch": epoch + 1,
             "model_state": model.state_dict(),
