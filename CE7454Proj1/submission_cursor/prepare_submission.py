@@ -1,15 +1,18 @@
 import argparse
 import shutil
+import subprocess
 import zipfile
 from pathlib import Path
+from typing import Iterable
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare submission artifacts for dev or test mode")
+    parser = argparse.ArgumentParser(description="Generate masks and package submission for dev/test modes")
     parser.add_argument("mode", choices=["dev", "test"], help="Submission mode")
     parser.add_argument("--images", type=str, required=True, help="Directory containing input images")
-    parser.add_argument("--masks", type=str, required=True, help="Directory containing generated masks")
     parser.add_argument("--output", type=str, required=True, help="Directory to build submission structure")
+    parser.add_argument("--weights", type=str, required=True, help="Path to model checkpoint")
+    parser.add_argument("--run-script", type=str, default="run.py", help="Inference script to execute")
     parser.add_argument(
         "--solution",
         type=str,
@@ -17,17 +20,29 @@ def parse_args() -> argparse.Namespace:
         help="Directory hosting solution files (used only in test mode)",
     )
     parser.add_argument("--zip-name", type=str, default=None, help="Optional custom name for submission zip")
+    parser.add_argument("--image-ext", type=str, default=".jpg", help="Input image extension (default: .jpg)")
     return parser.parse_args()
 
 
-def validate_masks(images_dir: Path, masks_dir: Path) -> None:
-    image_files = sorted([path.stem for path in images_dir.glob("*.jpg")])
-    mask_files = sorted([path.stem for path in masks_dir.glob("*.png")])
-    missing = sorted(set(image_files) - set(mask_files))
-    if missing:
-        raise FileNotFoundError(
-            "Missing mask files for images: " + ", ".join(missing[:10]) + ("..." if len(missing) > 10 else "")
-        )
+def run_inference(image_paths: Iterable[Path], masks_dir: Path, weights: Path, run_script: Path) -> None:
+    masks_dir.mkdir(parents=True, exist_ok=True)
+    for image_path in image_paths:
+        mask_path = masks_dir / f"{image_path.stem}.png"
+        cmd = [
+            "python",
+            str(run_script),
+            "--input",
+            str(image_path),
+            "--output",
+            str(mask_path),
+            "--weights",
+            str(weights),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Inference failed for {image_path.name}: {result.stderr or result.stdout}"
+            )
 
 
 def copy_masks(masks_dir: Path, target_dir: Path) -> None:
@@ -59,21 +74,32 @@ def main() -> None:
     args = parse_args()
     mode = args.mode
     images_dir = Path(args.images)
-    masks_dir = Path(args.masks)
     output_dir = Path(args.output)
+    weights_path = Path(args.weights)
+    run_script = Path(args.run_script)
     solution_dir = Path(args.solution) if args.solution else None
+    image_ext = args.image_ext
 
     if not images_dir.is_dir():
         raise FileNotFoundError(f"Images directory not found: {images_dir}")
-    if not masks_dir.is_dir():
-        raise FileNotFoundError(f"Masks directory not found: {masks_dir}")
+    if not weights_path.is_file():
+        raise FileNotFoundError(f"Weights file not found: {weights_path}")
+    if not run_script.is_file():
+        raise FileNotFoundError(f"Run script not found: {run_script}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    validate_masks(images_dir, masks_dir)
-
     masks_output = output_dir / "masks"
-    copy_masks(masks_dir, masks_output)
+    temp_masks_dir = output_dir / "_generated_masks"
+    temp_masks_dir.mkdir(parents=True, exist_ok=True)
+
+    image_paths = sorted(images_dir.glob(f"*{image_ext}"))
+    if not image_paths:
+        raise FileNotFoundError(f"No images with extension {image_ext} found in {images_dir}")
+
+    run_inference(image_paths, temp_masks_dir, weights_path, run_script)
+    copy_masks(temp_masks_dir, masks_output)
+    shutil.rmtree(temp_masks_dir)
 
     if mode == "test":
         if solution_dir is None:
