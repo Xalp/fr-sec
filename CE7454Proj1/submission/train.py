@@ -44,7 +44,7 @@ class CombinedLoss(nn.Module):
         return self.ce_weight * ce + self.dice_weight * dice
 
 
-def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, device):
+def train_epoch(model, dataloader, optimizer, criterion, scaler, device):
     model.train()
     total_loss = 0
     
@@ -61,9 +61,6 @@ def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, devi
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        
-        # Step scheduler per batch for OneCycleLR
-        scheduler.step()
         
         total_loss += loss.item()
     
@@ -104,20 +101,8 @@ def main(args):
     train_loader, val_loader = get_dataloader(args.data_dir, args.batch_size, args.num_workers)
     
     # Loss and optimizer
-    criterion = CombinedLoss(ce_weight=0.3, dice_weight=0.7)
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    
-    # OneCycleLR scheduler - needs steps_per_epoch
-    steps_per_epoch = len(train_loader)
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, 
-        max_lr=args.lr,
-        epochs=args.epochs,
-        steps_per_epoch=steps_per_epoch,
-        pct_start=0.3,  # 30% of training for warmup
-        div_factor=25,  # initial_lr = max_lr/25
-        final_div_factor=1000,  # final_lr = max_lr/1000
-    )
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
     scaler = GradScaler()
     
     # Training loop
@@ -127,7 +112,7 @@ def main(args):
         print(f"\nEpoch {epoch + 1}/{args.epochs}")
         
         # Train
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, scaler, scheduler, device)
+        train_loss = train_epoch(model, train_loader, optimizer, criterion, scaler, device)
         print(f"Train Loss: {train_loss:.4f}")
         
         # Validate
@@ -162,7 +147,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='../', help='Path to data directory')
     parser.add_argument('--batch_size', type=int, default=8, help='Batch size')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=20, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers')
     parser.add_argument('--feature_scale', type=float, default=4.15, help='Feature scale for model size')
