@@ -109,8 +109,8 @@ class HRNetLiteFaceParser(nn.Module):
         super().__init__()
         
         # Increase channel sizes to reach ~1.8M parameters
-        C_high = 96   # High resolution branch
-        C_low = 144   # Low resolution branch
+        C_high = 160   # High resolution branch  
+        C_low = 240    # Low resolution branch
         
         # Stem (full resolution)
         self.stem = nn.Sequential(
@@ -140,17 +140,18 @@ class HRNetLiteFaceParser(nn.Module):
         self.fusion2 = FusionModule(C_high, C_low)
         
         # Head
-        C_fused = C_high * 2  # 128
+        C_fused = C_high * 2  # 320
+        C_head = 256
         self.low_to_high_final = nn.Conv2d(C_low, C_high, 1, bias=False)
         self.head = nn.Sequential(
-            DSConvBlock(C_fused, C_fused),
-            nn.Conv2d(C_fused, 128, 1, bias=False),
-            nn.GroupNorm(get_group_gn(128), 128),
+            DSConvBlock(C_fused, C_head),
+            nn.Conv2d(C_head, C_head, 1, bias=False),
+            nn.GroupNorm(get_group_gn(C_head), C_head),
             nn.GELU()
         )
         
         # Classifier
-        self.classifier = nn.Conv2d(128, num_classes, 1)
+        self.classifier = nn.Conv2d(C_head, num_classes, 1)
         
         # Optional auxiliary heads
         self.edge_head = nn.Conv2d(C_high, 1, 1)  # Edge detection from Stage1
