@@ -7,7 +7,7 @@ from model import AttentionUNet
 
 
 def load_model(weights_path, device):
-    model = AttentionUNet(feature_scale=4.15, n_classes=19)
+    model = AttentionUNet(feature_scale=4, n_classes=19)
     model.load_state_dict(torch.load(weights_path, map_location=device))
     model.to(device)
     model.eval()
