@@ -43,13 +43,40 @@ def preprocess_image(image_path):
     return image_tensor
 
 
+def get_segmentation(frame, mask, normalization_params=None, ignore_idx=255, alpha=0.4):
+    PALETTE = np.array([[i, i, i] for i in range(256)])
+    PALETTE[:16] = np.array([
+        [0, 0, 0],
+        [128, 0, 0],
+        [0, 128, 0],
+        [128, 128, 0],
+        [0, 0, 128],
+        [128, 0, 128],
+        [0, 128, 128],
+        [128, 128, 128],
+        [64, 0, 0],
+        [191, 0, 0],
+        [64, 128, 0],
+        [191, 128, 0],
+        [64, 0, 128],
+        [191, 0, 128],
+        [64, 128, 128],
+        [191, 128, 128],
+    ])
+
+    mask = mask.cpu().numpy()
+    if frame is None:
+        mask = Image.fromarray(mask.astype(np.uint8))
+        mask.putpalette(PALETTE.reshape(-1).tolist())
+        return mask
+
 def postprocess_output(output):
     # Convert model output to single-channel mask
     # output shape: [1, 19, 512, 512]
     pred = torch.argmax(output, dim=1)[0]  # [512, 512]
     
-    # Convert to numpy and ensure uint8 type
-    mask = pred.cpu().numpy().astype(np.uint8)
+    # Use get_segmentation to create the mask with palette
+    mask = get_segmentation(None, pred, None)
     
     return mask
 
@@ -78,9 +105,8 @@ def main():
     # Post-process and save
     mask = postprocess_output(output)
     
-    # Save as single-channel PNG
-    mask_image = Image.fromarray(mask, mode='P')
-    mask_image.save(args.output)
+    # Save the mask (already has palette set by get_segmentation)
+    mask.save(args.output)
     
     print(f"Mask saved to {args.output}")
 
