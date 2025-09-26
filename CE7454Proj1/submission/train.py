@@ -105,7 +105,7 @@ def main(args):
     
     # Loss and optimizer
     criterion = CombinedLoss(ce_weight=0.9, dice_weight=0.1)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.001)
     
     # OneCycleLR scheduler with 1 epoch warmup
     steps_per_epoch = len(train_loader)
