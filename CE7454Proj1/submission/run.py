@@ -7,18 +7,22 @@ from model import AttentionUNet
 
 
 def load_model(weights_path, device):
-    model = AttentionUNet(feature_scale=3.3, n_classes=19)
-    
-    # Load checkpoint
+    # Load checkpoint first to check if it has deep supervision
     checkpoint = torch.load(weights_path, map_location=device)
     
-    # Handle different checkpoint formats
+    # Check if model has deep supervision layers
     if 'model_state_dict' in checkpoint:
-        # Training checkpoint format
-        model.load_state_dict(checkpoint['model_state_dict'])
+        state_dict = checkpoint['model_state_dict']
     else:
-        # Direct state dict format
-        model.load_state_dict(checkpoint)
+        state_dict = checkpoint
+    
+    has_deep_supervision = any(key.startswith('dsv') for key in state_dict.keys())
+    
+    # Create model with appropriate configuration
+    model = AttentionUNet(feature_scale=3.3, n_classes=19, use_deep_supervision=has_deep_supervision)
+    
+    # Load the state dict
+    model.load_state_dict(state_dict)
     
     model.to(device)
     model.eval()
@@ -101,6 +105,9 @@ def main():
     # Run inference
     with torch.no_grad():
         output = model(image_tensor)
+        # Handle deep supervision - use only the main output
+        if isinstance(output, tuple):
+            output = output[0]
     
     # Post-process and save
     mask = postprocess_output(output)
