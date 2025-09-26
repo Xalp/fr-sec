@@ -11,7 +11,7 @@ from dataset import get_dataloader
 import argparse
 import torch.nn.functional as F
 from torchvision import transforms
-from scipy import ndimage
+# scipy import removed - not needed without edge detection
 
 
 class DiceLoss(nn.Module):
@@ -50,31 +50,19 @@ class TVLoss(nn.Module):
         return diff_h.mean() + diff_w.mean()
 
 
-def get_edge_from_mask(mask):
-    """Extract edges from segmentation mask using Sobel filter"""
-    edges = []
-    for m in mask:
-        # Apply Sobel filter
-        sx = ndimage.sobel(m.cpu().numpy(), axis=0)
-        sy = ndimage.sobel(m.cpu().numpy(), axis=1)
-        edge = np.hypot(sx, sy)
-        edge = (edge > 0).astype(np.float32)
-        edges.append(edge)
-    return torch.from_numpy(np.array(edges)).to(mask.device)
+# Edge detection function removed - was causing memory issues
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, ce_weight=1.0, dice_weight=1.0, aux_weight=0.4, edge_weight=0.2, tv_weight=2e-4):
+    def __init__(self, ce_weight=1.0, dice_weight=1.0, aux_weight=0.4, tv_weight=2e-4):
         super().__init__()
         self.ce_loss = nn.CrossEntropyLoss()
         self.dice_loss = DiceLoss()
-        self.edge_loss = nn.BCEWithLogitsLoss()
         self.tv_loss = TVLoss()
         
         self.ce_weight = ce_weight
         self.dice_weight = dice_weight
         self.aux_weight = aux_weight
-        self.edge_weight = edge_weight
         self.tv_weight = tv_weight
         
     def forward(self, pred, target, edge_pred=None, aux_pred=None):
@@ -89,11 +77,7 @@ class CombinedLoss(nn.Module):
         
         total_loss = main_loss
         
-        # Edge loss
-        if edge_pred is not None:
-            edge_gt = get_edge_from_mask(target).unsqueeze(1)
-            edge_loss = self.edge_loss(edge_pred, edge_gt)
-            total_loss += self.edge_weight * edge_loss
+        # Edge loss removed - was causing memory issues
         
         # Auxiliary loss
         if aux_pred is not None:
@@ -179,7 +163,7 @@ def main(args):
     train_loader, val_loader = get_dataloader(args.data_dir, args.batch_size, args.num_workers)
     
     # Loss and optimizer
-    criterion = CombinedLoss(ce_weight=1.0, dice_weight=1.0, aux_weight=0.4, edge_weight=0.2, tv_weight=2e-4)
+    criterion = CombinedLoss(ce_weight=1.0, dice_weight=1.0, aux_weight=0.4, tv_weight=2e-4)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     
     # Cosine scheduler with warmup
