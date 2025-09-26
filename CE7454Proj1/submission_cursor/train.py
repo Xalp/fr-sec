@@ -29,7 +29,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
-    parser.add_argument("--save_every", type=int, default=5, help="Save checkpoint every N epochs")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val_split", type=float, default=0.1, help="Fraction of training data used for validation if explicit val set missing")
@@ -228,9 +227,8 @@ def main() -> None:
         }
         if is_best:
             best_state = copy.deepcopy(state)
-        if (epoch + 1) % args.save_every == 0 or is_best:
-            save_path = os.path.join(args.output_dir, f"checkpoint_{epoch + 1}.pth")
-            save_checkpoint(state, save_path)
+            best_path = os.path.join(args.output_dir, "ckpt_best.pth")
+            save_checkpoint(best_state, best_path)
 
     final_state = {
         "epoch": args.num_epochs,
@@ -240,11 +238,11 @@ def main() -> None:
         "best_val_loss": best_val_loss,
         "num_classes": num_classes,
     }
-    best_path = os.path.join(args.output_dir, "ckpt_best.pth")
     final_path = os.path.join(args.output_dir, "ckpt_last.pth")
     if best_state is None:
         best_state = copy.deepcopy(final_state)
-    save_checkpoint(best_state, best_path)
+        best_path = os.path.join(args.output_dir, "ckpt_best.pth")
+        save_checkpoint(best_state, best_path)
     save_checkpoint(final_state, final_path)
 
 
