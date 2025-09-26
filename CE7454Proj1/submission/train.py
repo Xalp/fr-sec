@@ -90,7 +90,7 @@ def main(args):
     print(f"Using device: {device}")
     
     # Create model with reduced feature_scale to increase parameters
-    model = AttentionUNet(feature_scale=4.15, n_classes=19).to(device)
+    model = AttentionUNet(feature_scale=args.feature_scale, n_classes=19).to(device)
     num_params = count_parameters(model)
     print(f"Model parameters: {num_params:,}")
     
@@ -153,6 +153,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers')
+    parser.add_argument('--feature_scale', type=float, default=4.15, help='Feature scale for model size')
     
     args = parser.parse_args()
     main(args)
