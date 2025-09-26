@@ -80,9 +80,9 @@ class FaceSegmentationDataset(Dataset):
     @property
     def left_right_pairs(self) -> Tuple[Tuple[int, int], ...]:
         return (
-            (1, 2),  # left brow, right brow
-            (3, 4),  # left eye, right eye
-            (7, 8),  # left ear, right ear
+            (6, 7),  # brows
+            (4, 5),  # eyes
+            (8, 9),  # ears
         )
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
