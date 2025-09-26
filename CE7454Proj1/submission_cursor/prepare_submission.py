@@ -5,6 +5,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
+from tqdm import tqdm
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate masks and package submission for dev/test modes")
@@ -26,7 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 def run_inference(image_paths: Iterable[Path], masks_dir: Path, weights: Path, run_script: Path) -> None:
     masks_dir.mkdir(parents=True, exist_ok=True)
-    for image_path in image_paths:
+    for image_path in tqdm(list(image_paths), desc="Generating masks"):
         mask_path = masks_dir / f"{image_path.stem}.png"
         cmd = [
             "python",
