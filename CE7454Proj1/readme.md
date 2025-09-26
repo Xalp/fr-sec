@@ -93,3 +93,33 @@ Please make sure that the code in the solution folder can be invoked with the fo
 pip install -r requirements.txt
 python3 run.py --input /path/to/input-image.jpg --output /path/to/output-mask.png --weights ckpt.pth
 We will use an external program to automatically invoke your code and compare the output-mask.png with the results in the masks folder. Marks will be deducted for incomplete submissions, such as missing key code components, inconsistencies between predictions and code.
+
+the output should be using this code:
+def get_segmentation(frame, mask, normalization_params, ignore_idx=255, alpha=0.4):
+    PALETTE = np.array([[i, i, i] for i in range(256)])
+    PALETTE[:16] = np.array([
+        [0, 0, 0],
+        [128, 0, 0],
+        [0, 128, 0],
+        [128, 128, 0],
+        [0, 0, 128],
+        [128, 0, 128],
+        [0, 128, 128],
+        [128, 128, 128],
+        [64, 0, 0],
+        [191, 0, 0],
+        [64, 128, 0],
+        [191, 128, 0],
+        [64, 0, 128],
+        [191, 0, 128],
+        [64, 128, 128],
+        [191, 128, 128],
+    ])
+
+    mask = mask.cpu().numpy()
+    if frame is None:
+        mask = Image.fromarray(mask.astype(np.uint8))
+        mask.putpalette(PALETTE.reshape(-1).tolist())
+        return mask
+
+to generate a visible .png file.
