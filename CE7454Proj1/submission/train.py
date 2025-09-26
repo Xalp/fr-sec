@@ -89,8 +89,8 @@ def main(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Create model
-    model = AttentionUNet(feature_scale=8, n_classes=19).to(device)
+    # Create model with reduced feature_scale to increase parameters
+    model = AttentionUNet(feature_scale=5, n_classes=19).to(device)
     num_params = count_parameters(model)
     print(f"Model parameters: {num_params:,}")
     
