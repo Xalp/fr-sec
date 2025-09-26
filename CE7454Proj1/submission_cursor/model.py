@@ -241,7 +241,7 @@ class ResidualDSBlockGN(nn.Module):
 class LightweightSegmentationNetV2(nn.Module):
     def __init__(self, num_classes: int = 16) -> None:
         super().__init__()
-        c1, c2, c3 = 48, 96, 128
+        c1, c2, c3 = 96, 192, 256
 
         self.stem = nn.Sequential(
             nn.Conv2d(3, c1, kernel_size=3, stride=2, padding=1, bias=False),
