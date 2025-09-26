@@ -47,7 +47,7 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     checkpoint = load_checkpoint(str(weights_path), map_location="cpu")
-    num_classes = checkpoint.get("num_classes", 16)
+    num_classes = checkpoint.get("num_classes", 19)
     model = build_model({"num_classes": num_classes})
     model.load_state_dict(checkpoint["model_state"])
     model.to(device)

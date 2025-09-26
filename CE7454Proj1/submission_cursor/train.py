@@ -182,9 +182,10 @@ def main() -> None:
         pin_memory=True,
     )
 
-    num_classes = config.get("num_classes", 16)
+    num_classes = config.get("num_classes", 19)
     model = build_model({"num_classes": num_classes})
     param_count = count_parameters(model)
+    print(f"Model has {param_count} parameters")
     if param_count >= 1_800_000:
         raise RuntimeError(f"Model has {param_count} parameters which exceeds the limit")
 
