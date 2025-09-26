@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def conv_bn_relu(in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1) -> nn.Sequential:
@@ -175,8 +176,136 @@ class LightweightSegmentationNet(nn.Module):
         return self.classifier(x)
 
 
+def _get_gn_groups(num_channels: int) -> int:
+    for group in (32, 16, 8, 4, 2):
+        if num_channels % group == 0:
+            return group
+    return 1
+
+
+def conv_gn_gelu(in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1) -> nn.Sequential:
+    padding = kernel_size // 2
+    return nn.Sequential(
+        nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias=False),
+        nn.GroupNorm(_get_gn_groups(out_channels), out_channels),
+        nn.GELU(),
+    )
+
+
+class ResidualDSBlockGN(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        stride: int = 1,
+        dilation: int = 1,
+    ) -> None:
+        super().__init__()
+        padding = dilation
+        self.depthwise = nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=in_channels,
+            bias=False,
+        )
+        self.dw_norm = nn.GroupNorm(_get_gn_groups(in_channels), in_channels)
+        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self.pw_norm = nn.GroupNorm(_get_gn_groups(out_channels), out_channels)
+        self.activation = nn.GELU()
+
+        if stride != 1 or in_channels != out_channels:
+            self.residual = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
+                nn.GroupNorm(_get_gn_groups(out_channels), out_channels),
+            )
+        else:
+            self.residual = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x
+        out = self.depthwise(x)
+        out = self.dw_norm(out)
+        out = self.activation(out)
+        out = self.pointwise(out)
+        out = self.pw_norm(out)
+        if self.residual is not None:
+            identity = self.residual(x)
+        out = out + identity
+        return self.activation(out)
+
+
+class LightweightSegmentationNetV2(nn.Module):
+    def __init__(self, num_classes: int = 16) -> None:
+        super().__init__()
+        c1, c2, c3 = 48, 96, 128
+
+        self.stem = nn.Sequential(
+            nn.Conv2d(3, c1, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.GroupNorm(_get_gn_groups(c1), c1),
+            nn.GELU(),
+            ResidualDSBlockGN(c1, c1),
+        )
+
+        self.enc1 = ResidualDSBlockGN(c1, c1)
+
+        self.enc2_down = ResidualDSBlockGN(c1, c2, stride=2)
+        self.enc2 = ResidualDSBlockGN(c2, c2)
+
+        self.enc3_down = ResidualDSBlockGN(c2, c3, stride=2)
+        self.enc3 = ResidualDSBlockGN(c3, c3)
+        self.context = ResidualDSBlockGN(c3, c3, dilation=2)
+
+        self.dec1_reduce = conv_gn_gelu(c3 + c2, c2)
+        self.dec1_block = ResidualDSBlockGN(c2, c2)
+
+        self.dec2_reduce = conv_gn_gelu(c2 + c1, 64)
+        self.dec2_block = ResidualDSBlockGN(64, 64)
+
+        self.dec3_reduce = conv_gn_gelu(64, c1)
+        self.dec3_block = ResidualDSBlockGN(c1, c1)
+
+        self.head = nn.Conv2d(c1, num_classes, kernel_size=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        size = x.shape[2:]
+
+        x = self.stem(x)
+        skip1 = self.enc1(x)
+
+        x = self.enc2_down(skip1)
+        skip2 = self.enc2(x)
+
+        x = self.enc3_down(skip2)
+        x = self.enc3(x)
+        x = self.context(x)
+
+        x = F.interpolate(x, size=skip2.shape[2:], mode="bilinear", align_corners=False)
+        x = torch.cat([x, skip2], dim=1)
+        x = self.dec1_reduce(x)
+        x = self.dec1_block(x)
+
+        x = F.interpolate(x, size=skip1.shape[2:], mode="bilinear", align_corners=False)
+        x = torch.cat([x, skip1], dim=1)
+        x = self.dec2_reduce(x)
+        x = self.dec2_block(x)
+
+        x = F.interpolate(x, size=size, mode="bilinear", align_corners=False)
+        x = self.dec3_reduce(x)
+        x = self.dec3_block(x)
+
+        return self.head(x)
+
+
 def build_model(config: Dict) -> nn.Module:
     num_classes = config.get("num_classes", 16)
-    model = LightweightSegmentationNet(num_classes=num_classes)
-    return model
+    model_type = config.get("model_type", "v1")
+
+    if model_type == "v2":
+        return LightweightSegmentationNetV2(num_classes=num_classes)
+
+    return LightweightSegmentationNet(num_classes=num_classes)
 

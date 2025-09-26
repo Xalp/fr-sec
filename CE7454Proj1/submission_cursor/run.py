@@ -76,7 +76,8 @@ def main() -> None:
 
     checkpoint = load_checkpoint(str(weights_path), map_location="cpu")
     num_classes = checkpoint.get("num_classes", 19)
-    model = build_model({"num_classes": num_classes})
+    model_type = checkpoint.get("model_type", "v1")
+    model = build_model({"num_classes": num_classes, "model_type": model_type})
     model.load_state_dict(checkpoint["model_state"])
     model.to(device)
     model.eval()

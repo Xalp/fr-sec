@@ -182,7 +182,8 @@ def main() -> None:
     )
 
     num_classes = config.get("num_classes", 19)
-    model = build_model({"num_classes": num_classes})
+    model_type = config.get("model_type", "v1")
+    model = build_model({"num_classes": num_classes, "model_type": model_type})
     param_count = count_parameters(model)
     print(f"Model has {param_count} parameters")
     if param_count >= 1_800_000:
@@ -200,6 +201,9 @@ def main() -> None:
 
     if args.resume:
         ckpt = torch.load(args.resume, map_location="cpu")
+        if "model_type" in ckpt:
+            model_type = ckpt["model_type"]
+            model = build_model({"num_classes": num_classes, "model_type": model_type}).to(device)
         model.load_state_dict(ckpt["model_state"])
         optimizer.load_state_dict(ckpt["optimizer_state"])
         scheduler.load_state_dict(ckpt["scheduler_state"])
@@ -224,6 +228,7 @@ def main() -> None:
             "scheduler_state": scheduler.state_dict(),
             "best_val_loss": best_val_loss,
             "num_classes": num_classes,
+            "model_type": model_type,
         }
         if is_best:
             best_state = copy.deepcopy(state)
@@ -237,6 +242,7 @@ def main() -> None:
         "scheduler_state": scheduler.state_dict(),
         "best_val_loss": best_val_loss,
         "num_classes": num_classes,
+        "model_type": model_type,
     }
     final_path = os.path.join(args.output_dir, "ckpt_last.pth")
     if best_state is None:
