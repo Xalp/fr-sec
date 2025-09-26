@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val_split", type=float, default=0.1, help="Fraction of training data used for validation if explicit val set missing")
     parser.add_argument("--amp", action="store_true", help="Use mixed precision training")
+    parser.add_argument("--augmentation_repeats", type=int, default=None, help="Number of virtual repeats with augmentation for each training sample")
     parser.add_argument("--num_classes", type=int, default=None, help="Override number of classes")
     parser.add_argument("--model_type", type=str, default=None, choices=["v1", "v2", "v3"], help="Choose model architecture")
     return parser.parse_args()
@@ -138,12 +139,14 @@ def main() -> None:
     image_transform = build_transforms()
 
     data_root = Path(args.data_root)
+    aug_repeats = args.augmentation_repeats if args.augmentation_repeats is not None else config.get("augmentation_repeats", 1)
     if has_explicit_val_split(data_root):
         train_dataset = FaceSegmentationDataset(
             root_dir=args.data_root,
             split="train",
             transform=image_transform,
             augment=True,
+            augmentation_repeats=aug_repeats,
         )
         val_dataset = FaceSegmentationDataset(
             root_dir=args.data_root,
@@ -159,6 +162,7 @@ def main() -> None:
             transform=image_transform,
             file_paths=train_paths,
             augment=True,
+            augmentation_repeats=aug_repeats,
         )
         val_dataset = FaceSegmentationDataset(
             root_dir=args.data_root,

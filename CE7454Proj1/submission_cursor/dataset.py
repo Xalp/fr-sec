@@ -3,8 +3,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
-from PIL import Image
-from torchvision.transforms import functional as TF
+from PIL import Image, ImageEnhance, ImageFilter
 
 import torch
 from torch.utils.data import Dataset
@@ -19,6 +18,7 @@ class FaceSegmentationDataset(Dataset):
         target_transform: Optional[Callable] = None,
         file_paths: Optional[Sequence[Path]] = None,
         augment: bool = False,
+        augmentation_repeats: int = 1,
         ignore_index: int = 255,
     ) -> None:
         super().__init__()
@@ -28,6 +28,7 @@ class FaceSegmentationDataset(Dataset):
         self.target_transform = target_transform
         self.augment = augment
         self.ignore_index = ignore_index
+        self.augmentation_repeats = max(1, augmentation_repeats if augment else 1)
 
         image_dir = self.root_dir / split / "images"
         if not image_dir.is_dir():
@@ -51,22 +52,72 @@ class FaceSegmentationDataset(Dataset):
             self.mask_paths = [None] * len(self.image_paths)
 
     def __len__(self) -> int:
-        return len(self.image_paths)
+        return len(self.image_paths) * self.augmentation_repeats
 
-    def _apply_augmentations(
-        self, image: Image.Image, mask: Optional[Image.Image]
-    ) -> Tuple[Image.Image, Optional[Image.Image]]:
-        if self.augment and random.random() < 0.5:
-            image = TF.hflip(image)
-            if mask is not None:
-                mask = TF.hflip(mask)
+    def _horizontal_flip(self, image: Image.Image, mask: Optional[Image.Image]) -> Tuple[Image.Image, Optional[Image.Image]]:
+        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        if mask is None:
+            return image, None
+
+        mask_np = np.array(mask, dtype=np.uint8)
+        mask_np = np.fliplr(mask_np)
+
+        for left, right in self.left_right_pairs:
+            left_mask = mask_np == left
+            right_mask = mask_np == right
+            mask_np[left_mask] = right
+            mask_np[right_mask] = left
+
+        return image, Image.fromarray(mask_np, mode="P")
+
+    @staticmethod
+    def _color_jitter(image: Image.Image) -> Image.Image:
+        enhancers = [
+            (ImageEnhance.Brightness, 0.8, 1.2),
+            (ImageEnhance.Contrast, 0.8, 1.2),
+            (ImageEnhance.Color, 0.8, 1.2),
+        ]
+        for enhancer_cls, low, high in enhancers:
+            if random.random() < 0.5:
+                enhancer = enhancer_cls(image)
+                factor = random.uniform(low, high)
+                image = enhancer.enhance(factor)
+        return image
+
+    @staticmethod
+    def _gaussian_blur(image: Image.Image) -> Image.Image:
+        radius = random.uniform(0.1, 1.0)
+        return image.filter(ImageFilter.GaussianBlur(radius))
+
+    def _apply_augmentations(self, image: Image.Image, mask: Optional[Image.Image]) -> Tuple[Image.Image, Optional[Image.Image]]:
+        if not self.augment:
+            return image, mask
+
+        if random.random() < 0.5:
+            image, mask = self._horizontal_flip(image, mask)
+
+        if random.random() < 0.7:
+            image = self._color_jitter(image)
+
+        if random.random() < 0.2:
+            image = self._gaussian_blur(image)
+
         return image, mask
 
+    @property
+    def left_right_pairs(self) -> Tuple[Tuple[int, int], ...]:
+        return (
+            (1, 2),  # left brow, right brow
+            (3, 4),  # left eye, right eye
+            (7, 8),  # left ear, right ear
+        )
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        image_path = self.image_paths[idx]
+        base_idx = idx % len(self.image_paths)
+        image_path = self.image_paths[base_idx]
         image = Image.open(image_path).convert("RGB")
 
-        mask_path = self.mask_paths[idx]
+        mask_path = self.mask_paths[base_idx]
         mask: Optional[Image.Image]
         if mask_path is not None:
             if not mask_path.is_file():
