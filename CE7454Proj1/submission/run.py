@@ -8,7 +8,18 @@ from model import AttentionUNet
 
 def load_model(weights_path, device):
     model = AttentionUNet(feature_scale=4.6, n_classes=19)
-    model.load_state_dict(torch.load(weights_path, map_location=device))
+    
+    # Load checkpoint
+    checkpoint = torch.load(weights_path, map_location=device)
+    
+    # Handle different checkpoint formats
+    if 'model_state_dict' in checkpoint:
+        # Training checkpoint format
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        # Direct state dict format
+        model.load_state_dict(checkpoint)
+    
     model.to(device)
     model.eval()
     return model
