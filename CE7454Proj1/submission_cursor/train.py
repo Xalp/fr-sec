@@ -33,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val_split", type=float, default=0.1, help="Fraction of training data used for validation if explicit val set missing")
     parser.add_argument("--amp", action="store_true", help="Use mixed precision training")
+    parser.add_argument("--num_classes", type=int, default=None, help="Override number of classes")
+    parser.add_argument("--model_type", type=str, default=None, choices=["v1", "v2"], help="Choose model architecture")
     return parser.parse_args()
 
 
@@ -181,8 +183,8 @@ def main() -> None:
         pin_memory=True,
     )
 
-    num_classes = config.get("num_classes", 19)
-    model_type = config.get("model_type", "v1")
+    num_classes = args.num_classes if args.num_classes is not None else config.get("num_classes", 19)
+    model_type = args.model_type if args.model_type is not None else config.get("model_type", "v1")
     model = build_model({"num_classes": num_classes, "model_type": model_type})
     param_count = count_parameters(model)
     print(f"Model has {param_count} parameters")
@@ -201,8 +203,9 @@ def main() -> None:
 
     if args.resume:
         ckpt = torch.load(args.resume, map_location="cpu")
-        if "model_type" in ckpt:
-            model_type = ckpt["model_type"]
+        ckpt_model_type = ckpt.get("model_type")
+        if ckpt_model_type and ckpt_model_type != model_type:
+            model_type = ckpt_model_type
             model = build_model({"num_classes": num_classes, "model_type": model_type}).to(device)
         model.load_state_dict(ckpt["model_state"])
         optimizer.load_state_dict(ckpt["optimizer_state"])
