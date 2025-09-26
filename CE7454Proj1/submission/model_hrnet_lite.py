@@ -4,6 +4,14 @@ import torch.nn.functional as F
 import numpy as np
 
 
+def get_group_gn(channels, max_groups=8):
+    """Get appropriate number of groups for GroupNorm"""
+    for g in [8, 6, 4, 3, 2, 1]:
+        if channels % g == 0 and g <= max_groups:
+            return g
+    return 1
+
+
 class DSConvBlock(nn.Module):
     """Depthwise Separable Convolution Block with residual connection"""
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, dw_kernel=3):
@@ -12,13 +20,13 @@ class DSConvBlock(nn.Module):
         
         # Pointwise -> GroupNorm -> GELU -> Depthwise -> GroupNorm -> GELU -> Pointwise -> GroupNorm
         self.pw1 = nn.Conv2d(in_channels, out_channels, 1, bias=False)
-        self.gn1 = nn.GroupNorm(min(16, out_channels), out_channels)
+        self.gn1 = nn.GroupNorm(get_group_gn(out_channels), out_channels)
         
         self.dw = nn.Conv2d(out_channels, out_channels, dw_kernel, stride, dw_kernel//2, groups=out_channels, bias=False)
-        self.gn2 = nn.GroupNorm(min(16, out_channels), out_channels)
+        self.gn2 = nn.GroupNorm(get_group_gn(out_channels), out_channels)
         
         self.pw2 = nn.Conv2d(out_channels, out_channels, 1, bias=False)
-        self.gn3 = nn.GroupNorm(min(16, out_channels), out_channels)
+        self.gn3 = nn.GroupNorm(get_group_gn(out_channels), out_channels)
         
         self.act = nn.GELU()
         
@@ -58,7 +66,7 @@ class Downsample(nn.Module):
         super().__init__()
         self.dw = nn.Conv2d(in_channels, in_channels, 3, 2, 1, groups=in_channels, bias=False)
         self.pw = nn.Conv2d(in_channels, out_channels, 1, bias=False)
-        self.gn = nn.GroupNorm(min(16, out_channels), out_channels)
+        self.gn = nn.GroupNorm(get_group_gn(out_channels), out_channels)
         self.act = nn.GELU()
     
     def forward(self, x):
@@ -103,7 +111,7 @@ class HRNetLiteFaceParser(nn.Module):
         # Stem (full resolution)
         self.stem = nn.Sequential(
             nn.Conv2d(3, 24, 1, bias=False),
-            nn.GroupNorm(8, 24),
+            nn.GroupNorm(8, 24),  # 24 divisible by 8
             nn.GELU(),
             DSConvBlock(24, 24, dw_kernel=5)  # Use 5x5 for sharper edges
         )
@@ -132,7 +140,7 @@ class HRNetLiteFaceParser(nn.Module):
         self.head = nn.Sequential(
             DSConvBlock(48, 48),  # 24 + 24 = 48
             nn.Conv2d(48, 64, 1, bias=False),
-            nn.GroupNorm(16, 64),
+            nn.GroupNorm(8, 64),  # Use 8 groups for 64 channels
             nn.GELU()
         )
         
