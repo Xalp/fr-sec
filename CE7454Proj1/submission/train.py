@@ -44,7 +44,7 @@ class CombinedLoss(nn.Module):
         return self.ce_weight * ce + self.dice_weight * dice
 
 
-def train_epoch(model, dataloader, optimizer, criterion, scaler, device):
+def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, device):
     model.train()
     total_loss = 0
     
@@ -61,6 +61,9 @@ def train_epoch(model, dataloader, optimizer, criterion, scaler, device):
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
+        
+        # Step scheduler per batch for OneCycleLR
+        scheduler.step()
         
         total_loss += loss.item()
     
@@ -101,8 +104,20 @@ def main(args):
     train_loader, val_loader = get_dataloader(args.data_dir, args.batch_size, args.num_workers)
     
     # Loss and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    criterion = CombinedLoss(ce_weight=0.9, dice_weight=0.1)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    
+    # OneCycleLR scheduler with 1 epoch warmup
+    steps_per_epoch = len(train_loader)
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer, 
+        max_lr=args.lr,
+        epochs=args.epochs,
+        steps_per_epoch=steps_per_epoch,
+        pct_start=1.0/args.epochs,  # 1 epoch warmup
+        div_factor=25,
+        final_div_factor=1000,
+    )
     scaler = GradScaler()
     
     # Training loop
@@ -112,7 +127,7 @@ def main(args):
         print(f"\nEpoch {epoch + 1}/{args.epochs}")
         
         # Train
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, scaler, device)
+        train_loss = train_epoch(model, train_loader, optimizer, criterion, scaler, scheduler, device)
         print(f"Train Loss: {train_loss:.4f}")
         
         # Validate
