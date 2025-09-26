@@ -108,48 +108,53 @@ class HRNetLiteFaceParser(nn.Module):
     def __init__(self, num_classes=19):
         super().__init__()
         
+        # Increase channel sizes to reach ~1.8M parameters
+        C_high = 96   # High resolution branch
+        C_low = 144   # Low resolution branch
+        
         # Stem (full resolution)
         self.stem = nn.Sequential(
-            nn.Conv2d(3, 24, 1, bias=False),
-            nn.GroupNorm(8, 24),  # 24 divisible by 8
+            nn.Conv2d(3, C_high, 1, bias=False),
+            nn.GroupNorm(get_group_gn(C_high), C_high),
             nn.GELU(),
-            DSConvBlock(24, 24, dw_kernel=5)  # Use 5x5 for sharper edges
+            DSConvBlock(C_high, C_high, dw_kernel=5)  # Use 5x5 for sharper edges
         )
         
-        # Stage 1 (1/1 resolution, C=24)
+        # Stage 1 (1/1 resolution)
         self.stage1 = nn.Sequential(
-            DSConvBlock(24, 24),
-            DSConvBlock(24, 24),
-            DSConvBlock(24, 24)
+            DSConvBlock(C_high, C_high),
+            DSConvBlock(C_high, C_high),
+            DSConvBlock(C_high, C_high)
         )
         
         # Stage 2 - create low resolution branch
-        self.downsample = Downsample(24, 40)
+        self.downsample = Downsample(C_high, C_low)
         
         # Stage 2 blocks (two branches)
-        self.high_blocks1 = nn.Sequential(DSConvBlock(24, 24), DSConvBlock(24, 24))
-        self.low_blocks1 = nn.Sequential(DSConvBlock(40, 40), DSConvBlock(40, 40))
-        self.fusion1 = FusionModule(24, 40)
+        self.high_blocks1 = nn.Sequential(DSConvBlock(C_high, C_high), DSConvBlock(C_high, C_high))
+        self.low_blocks1 = nn.Sequential(DSConvBlock(C_low, C_low), DSConvBlock(C_low, C_low))
+        self.fusion1 = FusionModule(C_high, C_low)
         
-        self.high_blocks2 = nn.Sequential(DSConvBlock(24, 24), DSConvBlock(24, 24))
-        self.low_blocks2 = nn.Sequential(DSConvBlock(40, 40), DSConvBlock(40, 40))
-        self.fusion2 = FusionModule(24, 40)
+        self.high_blocks2 = nn.Sequential(DSConvBlock(C_high, C_high), DSConvBlock(C_high, C_high))
+        self.low_blocks2 = nn.Sequential(DSConvBlock(C_low, C_low), DSConvBlock(C_low, C_low))
+        self.fusion2 = FusionModule(C_high, C_low)
         
         # Head
-        self.low_to_high_final = nn.Conv2d(40, 24, 1, bias=False)
+        C_fused = C_high * 2  # 128
+        self.low_to_high_final = nn.Conv2d(C_low, C_high, 1, bias=False)
         self.head = nn.Sequential(
-            DSConvBlock(48, 48),  # 24 + 24 = 48
-            nn.Conv2d(48, 64, 1, bias=False),
-            nn.GroupNorm(8, 64),  # Use 8 groups for 64 channels
+            DSConvBlock(C_fused, C_fused),
+            nn.Conv2d(C_fused, 128, 1, bias=False),
+            nn.GroupNorm(get_group_gn(128), 128),
             nn.GELU()
         )
         
         # Classifier
-        self.classifier = nn.Conv2d(64, num_classes, 1)
+        self.classifier = nn.Conv2d(128, num_classes, 1)
         
         # Optional auxiliary heads
-        self.edge_head = nn.Conv2d(24, 1, 1)  # Edge detection from Stage1
-        self.aux_head = nn.Conv2d(40, num_classes, 1)  # Auxiliary segmentation from low branch
+        self.edge_head = nn.Conv2d(C_high, 1, 1)  # Edge detection from Stage1
+        self.aux_head = nn.Conv2d(C_low, num_classes, 1)  # Auxiliary segmentation from low branch
         
         self._init_weights()
     

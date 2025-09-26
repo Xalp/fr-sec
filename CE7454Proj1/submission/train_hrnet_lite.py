@@ -194,10 +194,8 @@ def main(args):
     
     scaler = GradScaler()
     
-    # EMA
-    if args.ema:
-        from torch_ema import ExponentialMovingAverage
-        ema = ExponentialMovingAverage(model.parameters(), decay=0.999)
+    # EMA disabled
+    ema = None
     
     # Resolution curriculum
     resolution_schedule = [
@@ -224,16 +222,8 @@ def main(args):
         train_loss = train_epoch(model, train_loader, optimizer, criterion, scaler, scheduler, device, current_res)
         print(f"Train Loss: {train_loss:.4f}")
         
-        # Update EMA
-        if args.ema:
-            ema.update()
-        
         # Validate
-        if args.ema:
-            with ema.average_parameters():
-                val_loss = validate(model, val_loader, criterion, device)
-        else:
-            val_loss = validate(model, val_loader, criterion, device)
+        val_loss = validate(model, val_loader, criterion, device)
         print(f"Val Loss: {val_loss:.4f}")
         
         # Save best model
@@ -242,9 +232,6 @@ def main(args):
             patience_counter = 0
             
             state_dict = model.state_dict()
-            if args.ema:
-                with ema.average_parameters():
-                    state_dict = model.state_dict()
             
             torch.save({
                 'epoch': epoch,
@@ -268,11 +255,7 @@ def main(args):
         }, 'latest_model_hrnet.pth')
     
     # Save final model as ckpt.pth for submission
-    final_state = model.state_dict()
-    if args.ema:
-        with ema.average_parameters():
-            final_state = model.state_dict()
-    torch.save(final_state, 'ckpt_hrnet.pth')
+    torch.save(model.state_dict(), 'ckpt_hrnet.pth')
     print("\nTraining complete! Model saved as ckpt_hrnet.pth")
 
 
@@ -283,7 +266,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=200, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=7e-4, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers')
-    parser.add_argument('--ema', action='store_true', default=True, help='Use EMA')
+    parser.add_argument('--ema', action='store_true', default=False, help='Use EMA (disabled)')
     
     args = parser.parse_args()
     main(args)
