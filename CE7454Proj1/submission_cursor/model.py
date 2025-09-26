@@ -119,7 +119,7 @@ class ASPP(nn.Module):
 class LightweightSegmentationNet(nn.Module):
     def __init__(self, num_classes: int = 16) -> None:
         super().__init__()
-        encoder_channels = [24, 48, 96, 128]
+        encoder_channels = [24, 48, 128, 256]
         self.stem = nn.Sequential(
             conv_bn_relu(3, encoder_channels[0], kernel_size=3, stride=2),
             conv_bn_relu(encoder_channels[0], encoder_channels[0], kernel_size=3, stride=1),
