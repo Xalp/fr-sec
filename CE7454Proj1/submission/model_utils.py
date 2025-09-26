@@ -66,13 +66,15 @@ class AttentionGate(nn.Module):
 class unetUp(nn.Module):
     def __init__(self, in_size, out_size, is_deconv, is_batchnorm):
         super(unetUp, self).__init__()
-        self.conv = unetConv2(in_size, out_size, is_batchnorm)
+        # in_size is from deeper layer, out_size is the target size
+        # After concat, we'll have in_size + out_size channels
+        self.conv = unetConv2(in_size + out_size, out_size, is_batchnorm)
         
         # Add attention gate
-        self.attention = AttentionGate(F_g=in_size//2, F_l=in_size//2, F_int=in_size//4)
+        self.attention = AttentionGate(F_g=in_size, F_l=out_size, F_int=out_size//2)
 
         if is_deconv:
-            self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose2d(in_size, in_size, kernel_size=2, stride=2)
         else:
             self.up = nn.UpsamplingBilinear2d(scale_factor=2)
 
