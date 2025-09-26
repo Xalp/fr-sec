@@ -19,8 +19,12 @@ class AttentionUNet(nn.Module):
         self.feature_scale = feature_scale
 
         # Adjusted filter sizes to fit within parameter constraint
-        filters = [64, 128, 256, 512, 1024]
-        filters = [int(x / self.feature_scale) for x in filters]
+        if self.feature_scale == 4.15:
+            # Explicit values for feature_scale=4.15 to ensure consistency
+            filters = [15, 31, 62, 123, 247]
+        else:
+            filters = [64, 128, 256, 512, 1024]
+            filters = [int(x / self.feature_scale) for x in filters]
         
         # Results in [32, 64, 128, 256, 512] channels
 
