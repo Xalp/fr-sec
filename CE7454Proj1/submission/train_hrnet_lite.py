@@ -163,7 +163,7 @@ def main(args):
     print(f"Using device: {device}")
     
     # Create model
-    model = HRNetLiteFaceParser(n_classes=19).to(device)
+    model = HRNetLiteFaceParser(num_classes=19).to(device)
     num_params = count_parameters(model)
     print(f"Model parameters: {num_params:,}")
     

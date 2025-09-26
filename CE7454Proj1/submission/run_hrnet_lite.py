@@ -7,7 +7,7 @@ from model_hrnet_lite import HRNetLiteFaceParser
 
 
 def load_model(weights_path, device):
-    model = HRNetLiteFaceParser(n_classes=19)
+    model = HRNetLiteFaceParser(num_classes=19)
     
     # Load checkpoint
     checkpoint = torch.load(weights_path, map_location=device)
