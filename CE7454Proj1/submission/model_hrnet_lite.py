@@ -108,9 +108,9 @@ class HRNetLiteFaceParser(nn.Module):
     def __init__(self, num_classes=19):
         super().__init__()
         
-        # Increase channel sizes to reach ~1.8M parameters
-        C_high = 160   # High resolution branch  
-        C_low = 240    # Low resolution branch
+        # Reduce channel sizes to avoid OOM
+        C_high = 160    # High resolution branch  
+        C_low = 240     # Low resolution branch
         
         # Stem (full resolution)
         self.stem = nn.Sequential(

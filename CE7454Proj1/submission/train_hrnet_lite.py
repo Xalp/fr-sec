@@ -114,7 +114,11 @@ def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, devi
     else:
         resize = resize_mask = None
     
-    for images, masks in tqdm(dataloader, desc=f'Training {resolution}x{resolution}'):
+    for batch_idx, (images, masks) in enumerate(tqdm(dataloader, desc=f'Training {resolution}x{resolution}')):
+        # Clear cache periodically
+        if batch_idx % 10 == 0:
+            torch.cuda.empty_cache()
+            
         images = images.to(device)
         masks = masks.to(device)
         
@@ -261,7 +265,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='../', help='Path to data directory')
-    parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=4, help='Batch size')
     parser.add_argument('--epochs', type=int, default=200, help='Number of epochs')
     parser.add_argument('--lr', type=float, default=7e-4, help='Learning rate')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of workers')
