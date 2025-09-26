@@ -119,7 +119,7 @@ class ASPP(nn.Module):
 class LightweightSegmentationNet(nn.Module):
     def __init__(self, num_classes: int = 16) -> None:
         super().__init__()
-        encoder_channels = [32, 64, 128, 192]
+        encoder_channels = [24, 48, 96, 128]
         self.stem = nn.Sequential(
             conv_bn_relu(3, encoder_channels[0], kernel_size=3, stride=2),
             conv_bn_relu(encoder_channels[0], encoder_channels[0], kernel_size=3, stride=1),
@@ -142,12 +142,12 @@ class LightweightSegmentationNet(nn.Module):
             ResidualBlock(encoder_channels[3], encoder_channels[3], stride=1),
         )
 
-        self.aspp = ASPP(encoder_channels[3], 192, atrous_rates=[1, 6, 12])
+        self.aspp = ASPP(encoder_channels[3], 128, atrous_rates=[1, 6, 12])
 
-        self.decoder_conv1 = conv_bn_relu(encoder_channels[2] + 192, 128, kernel_size=3)
-        self.decoder_conv2 = conv_bn_relu(encoder_channels[1] + 128, 96, kernel_size=3)
-        self.decoder_conv3 = conv_bn_relu(encoder_channels[0] + 96, 64, kernel_size=3)
-        self.classifier = nn.Conv2d(64, num_classes, kernel_size=1)
+        self.decoder_conv1 = conv_bn_relu(encoder_channels[2] + 128, 96, kernel_size=3)
+        self.decoder_conv2 = conv_bn_relu(encoder_channels[1] + 96, 64, kernel_size=3)
+        self.decoder_conv3 = conv_bn_relu(encoder_channels[0] + 64, 48, kernel_size=3)
+        self.classifier = nn.Conv2d(48, num_classes, kernel_size=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         size = x.shape[2:]
