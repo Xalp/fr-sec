@@ -34,6 +34,31 @@ class unetConv2(nn.Module):
         return outputs
 
 
+class unetConv2Residual(nn.Module):
+    """UNet convolution block with residual connection"""
+    def __init__(self, in_size, out_size, is_batchnorm):
+        super(unetConv2Residual, self).__init__()
+        
+        self.conv_block = unetConv2(in_size, out_size, is_batchnorm)
+        
+        # Skip connection
+        if in_size != out_size:
+            self.skip = nn.Conv2d(in_size, out_size, 1)
+        else:
+            self.skip = None
+    
+    def forward(self, inputs):
+        outputs = self.conv_block(inputs)
+        
+        # Add residual connection
+        if self.skip is not None:
+            residual = self.skip(inputs)
+        else:
+            residual = inputs
+            
+        return outputs + residual
+
+
 class AttentionGate(nn.Module):
     def __init__(self, F_g, F_l, F_int):
         super(AttentionGate, self).__init__()

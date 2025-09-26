@@ -11,12 +11,14 @@ class AttentionUNet(nn.Module):
         is_deconv=True,
         in_channels=3,
         is_batchnorm=True,
+        use_deep_supervision=False,
     ):
         super(AttentionUNet, self).__init__()
         self.is_deconv = is_deconv
         self.in_channels = in_channels
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
+        self.use_deep_supervision = use_deep_supervision
 
         # Adjusted filter sizes to fit within parameter constraint
         # Start with more channels for better feature extraction
@@ -48,6 +50,12 @@ class AttentionUNet(nn.Module):
 
         # final conv (without any concat)
         self.final = nn.Conv2d(filters[0], n_classes, 1)
+        
+        # Deep supervision outputs (inspired by HRNet)
+        if self.use_deep_supervision:
+            self.dsv4 = nn.Conv2d(filters[3], n_classes, 1)
+            self.dsv3 = nn.Conv2d(filters[2], n_classes, 1)
+            self.dsv2 = nn.Conv2d(filters[1], n_classes, 1)
 
     def forward(self, inputs):
         conv1 = self.conv1(inputs)
@@ -71,7 +79,20 @@ class AttentionUNet(nn.Module):
 
         final = self.final(up1)
 
-        return final
+        if self.use_deep_supervision:
+            # Deep supervision outputs at different scales
+            dsv4 = self.dsv4(up4)
+            dsv3 = self.dsv3(up3)
+            dsv2 = self.dsv2(up2)
+            
+            # Upsample to match input resolution
+            dsv4 = nn.functional.interpolate(dsv4, size=inputs.size()[2:], mode='bilinear', align_corners=True)
+            dsv3 = nn.functional.interpolate(dsv3, size=inputs.size()[2:], mode='bilinear', align_corners=True)
+            dsv2 = nn.functional.interpolate(dsv2, size=inputs.size()[2:], mode='bilinear', align_corners=True)
+            
+            return final, dsv4, dsv3, dsv2
+        else:
+            return final
 
 
 def count_parameters(model):

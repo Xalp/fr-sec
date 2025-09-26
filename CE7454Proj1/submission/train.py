@@ -31,17 +31,35 @@ class DiceLoss(nn.Module):
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, ce_weight=0.5, dice_weight=0.5):
+    def __init__(self, ce_weight=0.5, dice_weight=0.5, deep_supervision=False):
         super(CombinedLoss, self).__init__()
         self.ce_loss = nn.CrossEntropyLoss()
         self.dice_loss = DiceLoss()
         self.ce_weight = ce_weight
         self.dice_weight = dice_weight
+        self.deep_supervision = deep_supervision
         
     def forward(self, pred, target):
-        ce = self.ce_loss(pred, target)
-        dice = self.dice_loss(pred, target)
-        return self.ce_weight * ce + self.dice_weight * dice
+        if self.deep_supervision and isinstance(pred, tuple):
+            # Main output
+            main_pred = pred[0]
+            ce = self.ce_loss(main_pred, target)
+            dice = self.dice_loss(main_pred, target)
+            loss = self.ce_weight * ce + self.dice_weight * dice
+            
+            # Deep supervision losses with decreasing weights
+            weights = [0.4, 0.3, 0.2]  # for dsv4, dsv3, dsv2
+            for i, (aux_pred, w) in enumerate(zip(pred[1:], weights)):
+                aux_ce = self.ce_loss(aux_pred, target)
+                aux_dice = self.dice_loss(aux_pred, target)
+                loss += w * (self.ce_weight * aux_ce + self.dice_weight * aux_dice)
+            
+            return loss
+        else:
+            # Single output
+            ce = self.ce_loss(pred, target)
+            dice = self.dice_loss(pred, target)
+            return self.ce_weight * ce + self.dice_weight * dice
 
 
 def train_epoch(model, dataloader, optimizer, criterion, scaler, scheduler, device):
