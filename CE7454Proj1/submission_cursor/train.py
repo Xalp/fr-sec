@@ -194,7 +194,9 @@ def main() -> None:
     model = model.to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.1, patience=3, verbose=True
+    )
     scaler = torch.cuda.amp.GradScaler() if args.amp and device.type == "cuda" else None
 
     start_epoch = 0
@@ -216,7 +218,7 @@ def main() -> None:
     for epoch in range(start_epoch, args.num_epochs):
         train_loss = train_one_epoch(model, train_loader, optimizer, device, scaler)
         val_loss = evaluate(model, val_loader, device)
-        scheduler.step()
+        scheduler.step(val_loss)
 
         is_best = val_loss < best_val_loss
         if is_best:
