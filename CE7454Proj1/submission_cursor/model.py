@@ -329,7 +329,7 @@ class LightweightSegmentationNetV2(nn.Module):
 class LightweightSegmentationNetV3(nn.Module):
     def __init__(self, num_classes: int = 16) -> None:
         super().__init__()
-        base = 24
+        base = 36
         c1, c2, c3, c4 = base, base * 2, base * 4, base * 8
 
         self.stem = nn.Sequential(
